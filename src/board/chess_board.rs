@@ -1,4 +1,5 @@
 use druid::{Widget, Color, RenderContext};
+use druid::piet::{Text, TextLayoutBuilder};
 use crate::app::AppState;
 use crate::pieces::*;
 use super::chess_square::ChessSquare;
@@ -120,10 +121,11 @@ impl Widget<AppState> for ChessBoard {
             let square_size = width.min(window_size.height) / 8.0;
             let board_width = 8.0 * square_size;
             let x_offset = (width - board_width) / 2.0;
+            let y_offset = 30.0; // Add vertical offset for status text
 
             // Calculate which square was clicked
             let board_x = mouse_event.pos.x - x_offset;
-            let board_y = mouse_event.pos.y;
+            let board_y = mouse_event.pos.y - y_offset;
 
             if board_x >= 0.0 && board_x < board_width && board_y >= 0.0 && board_y < board_width {
                 let col = (board_x / square_size) as usize;
@@ -157,7 +159,7 @@ impl Widget<AppState> for ChessBoard {
     fn layout(&mut self, _ctx: &mut druid::LayoutCtx, bc: &druid::BoxConstraints, _data: &AppState, _env: &druid::Env) -> druid::Size {
         let max_size = bc.max();
         let square_size = max_size.width.min(max_size.height);
-        druid::Size::new(square_size, square_size)
+        druid::Size::new(square_size, square_size + 60.0) // Add space for status text and coordinates
     }
 
     fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &AppState, _env: &druid::Env) {
@@ -166,12 +168,47 @@ impl Widget<AppState> for ChessBoard {
         let square_size = width.min(window_size.height) / 8.0;
         let board_width = 8.0 * square_size;
         let x_offset = (width - board_width) / 2.0;
+        let y_offset = 30.0; // Add vertical offset for status text
 
+        // Draw status text at the top
+        let status_text = format!("{} to move - Game Status: {:?}",
+            if data.game_state.current_turn == PieceColor::White { "White" } else { "Black" },
+            data.game_state.status
+        );
+        let text_layout = ctx.text().new_text_layout(status_text)
+            .font(druid::FontFamily::SYSTEM_UI, 20.0)
+            .text_color(Color::BLACK)
+            .build()
+            .unwrap();
+        ctx.draw_text(&text_layout, (x_offset, 5.0));
+
+        // Draw move history on the right side
+        let history_x = x_offset + board_width + 20.0;
+        let mut history_y = y_offset;
+        let history_text = ctx.text().new_text_layout("Move History:")
+            .font(druid::FontFamily::SYSTEM_UI, 16.0)
+            .text_color(Color::BLACK)
+            .build()
+            .unwrap();
+        ctx.draw_text(&history_text, (history_x, history_y));
+        history_y += 25.0;
+
+        for move_text in &data.game_state.move_history {
+            let move_layout = ctx.text().new_text_layout(move_text.clone())
+                .font(druid::FontFamily::MONOSPACE, 14.0)
+                .text_color(Color::BLACK)
+                .build()
+                .unwrap();
+            ctx.draw_text(&move_layout, (history_x, history_y));
+            history_y += 20.0;
+        }
+
+        // Draw the board
         for (i, square) in self.squares.iter().enumerate() {
             let row = i / 8;
             let col = i % 8;
             let x = x_offset + col as f64 * square_size;
-            let y = row as f64 * square_size;
+            let y = y_offset + row as f64 * square_size;  // Add offset for status text
 
             let rect = druid::Rect::from_origin_size(
                 (x, y),
@@ -309,6 +346,26 @@ impl Widget<AppState> for ChessBoard {
                     },
                 }
             }
+        }
+
+        // Draw coordinates
+        let coord_size = 14.0;
+        for i in 0..8 {
+            // Draw rank numbers (1-8)
+            let rank_text = ctx.text().new_text_layout((8-i).to_string())
+                .font(druid::FontFamily::SYSTEM_UI, coord_size)
+                .text_color(Color::BLACK)
+                .build()
+                .unwrap();
+            ctx.draw_text(&rank_text, (x_offset - 20.0, y_offset + i as f64 * square_size + square_size/2.0 - coord_size/2.0));
+
+            // Draw file letters (a-h)
+            let file_text = ctx.text().new_text_layout(((b'a' + i as u8) as char).to_string())
+                .font(druid::FontFamily::SYSTEM_UI, coord_size)
+                .text_color(Color::BLACK)
+                .build()
+                .unwrap();
+            ctx.draw_text(&file_text, (x_offset + i as f64 * square_size + square_size/2.0 - coord_size/2.0, y_offset + board_width + 5.0));
         }
     }
 }

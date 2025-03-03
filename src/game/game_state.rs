@@ -1,5 +1,6 @@
 use crate::pieces::{Piece, PieceColor, PieceType};
 use druid::Data;
+use druid::im::Vector;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Data)]
 pub enum GameStatus {
@@ -18,6 +19,7 @@ pub struct GameState {
     pub white_can_castle_queenside: bool,
     pub black_can_castle_kingside: bool,
     pub black_can_castle_queenside: bool,
+    pub move_history: Vector<String>,
 }
 
 impl GameState {
@@ -30,6 +32,7 @@ impl GameState {
             white_can_castle_queenside: true,
             black_can_castle_kingside: true,
             black_can_castle_queenside: true,
+            move_history: Vector::new(),
         }
     }
 
@@ -56,9 +59,21 @@ impl GameState {
 
         // Special moves check
         if piece.piece_type == PieceType::King {
+            // Check if the target square is under attack
+            if self.is_square_attacked((to.0, to.1), piece.color, board) {
+                return false;
+            }
+
             // Castling
             if self.is_castling_move(from, to, board) {
                 return self.is_valid_castling(from, to, board);
+            }
+
+            // For regular king moves, check if target square contains friendly piece
+            if let Some(target) = board[to.0 * 8 + to.1] {
+                if target.color == piece.color {
+                    return false;
+                }
             }
         } else if piece.piece_type == PieceType::Pawn {
             let dx = (to.1 as i32 - from.1 as i32).abs();
@@ -288,25 +303,41 @@ impl GameState {
         }
     }
 
+    fn get_square_name(pos: (usize, usize)) -> String {
+        let file = (b'a' + pos.1 as u8) as char;
+        let rank = 8 - pos.0;
+        format!("{}{}", file, rank)
+    }
+
+    fn get_piece_symbol(piece: Piece) -> &'static str {
+        match piece.piece_type {
+            PieceType::King => "K",
+            PieceType::Queen => "Q",
+            PieceType::Rook => "R",
+            PieceType::Bishop => "B",
+            PieceType::Knight => "N",
+            PieceType::Pawn => "",
+        }
+    }
+
     pub fn make_move(&mut self, from: (usize, usize), to: (usize, usize), board: &mut Vec<Option<Piece>>) -> bool {
         if !self.is_valid_move(from, to, board) {
             return false;
         }
 
         let piece = board[from.0 * 8 + from.1].unwrap();
+        let is_capture = board[to.0 * 8 + to.1].is_some() || self.is_en_passant_move(from, to, board);
+        let is_castling = self.is_castling_move(from, to, board);
 
         // Handle castling
-        if self.is_castling_move(from, to, board) {
+        if is_castling {
             let row = from.0;
             let (rook_from_col, rook_to_col) = if to.1 == 6 { (7, 5) } else { (0, 3) };
-
-            // Move rook
             board[row * 8 + rook_to_col] = board[row * 8 + rook_from_col].take();
         }
 
         // Handle en passant
         if self.is_en_passant_move(from, to, board) {
-            // Remove the captured pawn
             board[from.0 * 8 + to.1] = None;
         }
 
@@ -336,6 +367,20 @@ impl GameState {
         // Make the move
         board[to.0 * 8 + to.1] = board[from.0 * 8 + from.1].take();
 
+        // Record the move in algebraic notation
+        let mut move_text = String::new();
+
+        if is_castling {
+            move_text = if to.1 == 6 { "O-O".to_string() } else { "O-O-O".to_string() };
+        } else {
+            move_text.push_str(Self::get_piece_symbol(piece));
+            move_text.push_str(&Self::get_square_name(from));
+            if is_capture {
+                move_text.push('x');
+            }
+            move_text.push_str(&Self::get_square_name(to));
+        }
+
         // Handle pawn promotion
         if piece.piece_type == PieceType::Pawn {
             if (piece.color == PieceColor::White && to.0 == 0) ||
@@ -345,13 +390,33 @@ impl GameState {
                     piece_type: PieceType::Queen,
                     color: piece.color,
                 });
+                move_text.push_str("=Q");
+            }
+        }
+
+        // Update game status
+        self.update_game_status(board);
+
+        // Add check or checkmate symbol
+        match self.status {
+            GameStatus::Check => move_text.push('+'),
+            GameStatus::Checkmate => move_text.push('#'),
+            _ => {}
+        }
+
+        // Add move to history
+        if piece.color == PieceColor::White {
+            self.move_history.push_back(format!("{}. {}", self.move_history.len() / 2 + 1, move_text));
+        } else {
+            if let Some(last) = self.move_history.last() {
+                let mut new_last = last.clone();
+                new_last.push_str(&format!(" {}", move_text));
+                self.move_history.pop_back();
+                self.move_history.push_back(new_last);
             }
         }
 
         self.last_move = Some((from, to));
-
-        // Update game status
-        self.update_game_status(board);
 
         // Switch turns
         self.current_turn = if self.current_turn == PieceColor::White {

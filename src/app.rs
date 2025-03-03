@@ -1,17 +1,17 @@
-use druid::{Data, Lens};
-use crate::game::GameState;
+use druid::Data;
+use crate::game::game_state::GameState;
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data)]
 pub struct AppState {
-    pub selected_square: Option<usize>,
     pub game_state: GameState,
+    pub selected_square: Option<usize>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
-            selected_square: None,
             game_state: GameState::new(),
+            selected_square: None,
         }
     }
 }
