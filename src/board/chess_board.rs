@@ -117,7 +117,7 @@ impl Widget<AppState> for ChessBoard {
         if let druid::Event::MouseDown(mouse_event) = event {
             let window_size = ctx.window().get_size();
             let width = window_size.width;
-            let square_size = width.min(window_size.height-30.0) / 8.0;
+            let square_size = width.min(window_size.height) / 8.0;
             let board_width = 8.0 * square_size;
             let x_offset = (width - board_width) / 2.0;
 
@@ -131,13 +131,17 @@ impl Widget<AppState> for ChessBoard {
                 let square_idx = row * 8 + col;
 
                 if let Some(selected) = data.selected_square {
-                    if selected != square_idx {
+                    if selected == square_idx {
+                        // Clicking the same square deselects it
+                        data.selected_square = None;
+                    } else {
+                        // Try to make a move
                         if self.make_move(selected, square_idx, data) {
                             data.selected_square = None;
                         }
                     }
-                    data.selected_square = None;
                 } else if let Some(piece) = self.squares[square_idx].piece {
+                    // Select a piece of the current player's color
                     if piece.color == data.game_state.current_turn {
                         data.selected_square = Some(square_idx);
                     }
@@ -152,14 +156,14 @@ impl Widget<AppState> for ChessBoard {
 
     fn layout(&mut self, _ctx: &mut druid::LayoutCtx, bc: &druid::BoxConstraints, _data: &AppState, _env: &druid::Env) -> druid::Size {
         let max_size = bc.max();
-        let square_size = max_size.width.min(max_size.height+30.0);
+        let square_size = max_size.width.min(max_size.height);
         druid::Size::new(square_size, square_size)
     }
 
     fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &AppState, _env: &druid::Env) {
         let window_size = ctx.window().get_size();
         let width = window_size.width;
-        let square_size = width.min(window_size.height-30.0) / 8.0;
+        let square_size = width.min(window_size.height) / 8.0;
         let board_width = 8.0 * square_size;
         let x_offset = (width - board_width) / 2.0;
 

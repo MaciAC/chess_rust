@@ -335,6 +335,19 @@ impl GameState {
 
         // Make the move
         board[to.0 * 8 + to.1] = board[from.0 * 8 + from.1].take();
+
+        // Handle pawn promotion
+        if piece.piece_type == PieceType::Pawn {
+            if (piece.color == PieceColor::White && to.0 == 0) ||
+               (piece.color == PieceColor::Black && to.0 == 7) {
+                // Promote to queen by default
+                board[to.0 * 8 + to.1] = Some(Piece {
+                    piece_type: PieceType::Queen,
+                    color: piece.color,
+                });
+            }
+        }
+
         self.last_move = Some((from, to));
 
         // Update game status
