@@ -1,6 +1,7 @@
 mod app;
 mod board;
 mod pieces;
+mod game;
 
 use app::AppState;
 use board::chess_board::ChessBoard;

@@ -60,38 +60,51 @@ impl ChessBoard {
         self.squares[idx].piece
     }
 
-    fn get_possible_moves(&self, square_idx: usize) -> Vec<usize> {
+    fn get_possible_moves(&self, square_idx: usize, game_state: &AppState) -> Vec<usize> {
         let piece = match self.get_piece_at(square_idx) {
             Some(p) => p,
             None => return vec![],
         };
 
-        let row = square_idx / 8;
-        let col = square_idx % 8;
-        let from = (row as i32, col as i32);
-
-        // Get valid moves from the piece
-        piece.get_valid_moves(from, self)
-            .into_iter()
-            .map(|(row, col)| (row * 8 + col) as usize)
-            .collect()
-    }
-
-    pub fn make_move(&mut self, from_idx: usize, to_idx: usize) -> bool {
-        if from_idx >= 64 || to_idx >= 64 {
-            return false;
+        // Convert squares to board representation for game state
+        let mut board = Vec::with_capacity(64);
+        for square in &self.squares {
+            board.push(square.piece);
         }
 
-        let piece = match self.squares[from_idx].piece {
-            Some(p) => p,
-            None => return false,
-        };
+        let row = square_idx / 8;
+        let col = square_idx % 8;
+        let from = (row, col);
 
-        let from = (from_idx as i32 / 8, from_idx as i32 % 8);
-        let to = (to_idx as i32 / 8, to_idx as i32 % 8);
+        // Get all theoretically valid moves
+        let mut valid_moves = Vec::new();
+        for to_row in 0..8 {
+            for to_col in 0..8 {
+                let to = (to_row, to_col);
+                if game_state.game_state.is_valid_move(from, to, &board) {
+                    valid_moves.push(to_row * 8 + to_col);
+                }
+            }
+        }
 
-        if piece.is_valid_move(from, to, self) {
-            self.squares[to_idx].piece = self.squares[from_idx].piece.take();
+        valid_moves
+    }
+
+    fn make_move(&mut self, from_idx: usize, to_idx: usize, game_state: &mut AppState) -> bool {
+        // Convert squares to board representation for game state
+        let mut board = Vec::with_capacity(64);
+        for square in &self.squares {
+            board.push(square.piece);
+        }
+
+        let from = (from_idx / 8, from_idx % 8);
+        let to = (to_idx / 8, to_idx % 8);
+
+        if game_state.game_state.make_move(from, to, &mut board) {
+            // Update the chess board with the new state
+            for (i, piece) in board.into_iter().enumerate() {
+                self.squares[i].piece = piece;
+            }
             true
         } else {
             false
@@ -148,13 +161,15 @@ impl Widget<AppState> for ChessBoard {
 
                 if let Some(selected) = data.selected_square {
                     if selected != square_idx {
-                        if self.make_move(selected, square_idx) {
+                        if self.make_move(selected, square_idx, data) {
                             data.selected_square = None;
                         }
                     }
                     data.selected_square = None;
-                } else if self.squares[square_idx].piece.is_some() {
-                    data.selected_square = Some(square_idx);
+                } else if let Some(piece) = self.squares[square_idx].piece {
+                    if piece.color == data.game_state.current_turn {
+                        data.selected_square = Some(square_idx);
+                    }
                 }
                 ctx.request_paint();
             }
@@ -192,7 +207,7 @@ impl Widget<AppState> for ChessBoard {
             let fill_color = if Some(i) == data.selected_square {
                 Color::rgb8(255, 255, 0)
             } else if let Some(selected) = data.selected_square {
-                if self.get_possible_moves(selected).contains(&i) {
+                if self.get_possible_moves(selected, data).contains(&i) {
                     Color::rgb8(144, 238, 144) // Light green for possible moves
                 } else if square.is_light {
                     Color::rgb8(200, 200, 200)
