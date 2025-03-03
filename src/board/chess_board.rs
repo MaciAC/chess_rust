@@ -61,7 +61,7 @@ impl ChessBoard {
     }
 
     fn get_possible_moves(&self, square_idx: usize, game_state: &AppState) -> Vec<usize> {
-        let piece = match self.get_piece_at(square_idx) {
+        let _piece = match self.get_piece_at(square_idx) {
             Some(p) => p,
             None => return vec![],
         };
@@ -109,35 +109,6 @@ impl ChessBoard {
         } else {
             false
         }
-    }
-
-    pub fn is_path_clear(&self, from: (i32, i32), to: (i32, i32)) -> bool {
-        let dx = to.1 - from.1;
-        let dy = to.0 - from.0;
-
-        // Calculate step direction
-        let step_x = if dx == 0 { 0 } else { dx / dx.abs() };
-        let step_y = if dy == 0 { 0 } else { dy / dy.abs() };
-
-        let mut x = from.1 + step_x;
-        let mut y = from.0 + step_y;
-
-        // Check all squares between from and to (exclusive)
-        while (x, y) != (to.1, to.0) {
-            if x < 0 || x >= 8 || y < 0 || y >= 8 {
-                break;
-            }
-
-            let idx = y as usize * 8 + x as usize;
-            if self.squares[idx].piece.is_some() {
-                return false;
-            }
-
-            x += step_x;
-            y += step_y;
-        }
-
-        true
     }
 }
 
